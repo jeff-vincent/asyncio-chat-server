@@ -31,7 +31,8 @@ class ChatServer:
             message = data.decode('utf-8').strip()
             # pass to forward, and free up while you wait
             await self.forward(writer, addr, message)
-            # call writer.drain and free up while you wait for it to run
+            # call writer.drain() to write from the loops' buffer, 
+            # and free up while you wait for it to run
             await writer.drain()
             # if client text == 'exit', break loop; stop server
             if message == "exit":
@@ -44,7 +45,7 @@ class ChatServer:
         writer.close()
 
     async def main(self):
-        # start server; pass self.handle as a callback
+        # start server; pass self.handle() as a callback
         server = await asyncio.start_server(
             self.handle, '127.0.0.1', 8888)
 
