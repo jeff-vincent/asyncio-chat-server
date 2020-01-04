@@ -23,7 +23,7 @@ class ChatServer:
         # pass to self.forward, and free up while you wait
         await self.forward(writer, addr, message)
         
-        # run server
+        # set reader to listen for incoming messages
         while True:
             # wait for reader to load data
             data = await reader.read(100)
@@ -34,13 +34,13 @@ class ChatServer:
             # call writer.drain() to write from the loops' buffer, 
             # and free up while you wait for it to run
             await writer.drain()
-            # if client text == 'exit', break loop; stop server
+            # if client text == 'exit', break loop; stop reader object from listening
             if message == "exit":
                 message = f"{addr!r} wants to close the connection."
                 print(message)
                 self.forward(writer, "Server", message)
                 break
-        # if server stopped, clean up
+        # if reader is stopped, clean up by removing writer from list of writers.
         self.writers.remove(writer)
         writer.close()
 
