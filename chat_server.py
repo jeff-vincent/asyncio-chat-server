@@ -31,7 +31,7 @@ class ChatServer:
             message = data.decode('utf-8').strip()
             # pass to forward, and free up while you wait
             await self.forward(writer, addr, message)
-            # call writer.drain() to write from the loops' buffer, 
+            # call writer.drain() to write from [clear] the loops' buffer, 
             # and free up while you wait for it to run
             await writer.drain()
             # if client text == 'exit', break loop; stop reader object from listening
