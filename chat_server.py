@@ -27,7 +27,7 @@ class ChatServer:
         while True:
             # wait for reader to load data
             data = await reader.read(100)
-            # decode bytes to utf-8
+            # decode bytes from utf-8
             message = data.decode('utf-8').strip()
             # pass to forward, and free up while you wait
             await self.forward(writer, addr, message)
