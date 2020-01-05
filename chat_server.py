@@ -29,12 +29,15 @@ class ChatServer:
 
     async def get_users(self, writer):
         user_list = []
+        # iterate over users dict to build list
         for addr, username in self.users.items():
             user_list.append(username)
+        # format string with user list
         message = f"Current users: {', '.join(user_list)!r}"
-        writer.write(bytes(message, 'utf-8'))
+        # write it out
+        writer.write(bytes(message + '\n', 'utf-8'))
+        # tidy up
         await writer.drain()
-
 
     async def handle(self, reader, writer):
         # add writer to list of writers
@@ -53,11 +56,18 @@ class ChatServer:
             data = await reader.read(100)
             # decode bytes to utf-8
             message = data.decode().strip()
+            
+            # expose method for users to get current user list
+            if message == "/users":
+                await self.get_users(writer)
+
             # pass to forward, and free up while you wait
-            await self.forward(writer, addr, message)
+            else:
+                await self.forward(writer, addr, message)
             # call writer.drain() to write from [clear] the loops' buffer, 
             # and free up while you wait
             await writer.drain()
+
             # if client text == 'exit', break loop; 
             # stop reader from listening
             if message == "exit":
@@ -65,9 +75,6 @@ class ChatServer:
                 print(message)
                 self.forward(writer, "Server", message)
                 break
-            # expose method for users to get current user list
-            if message == "/users":
-                await self.get_users(writer)
 
         # if reader is stopped, clean up by removing writer from list of writers
         self.writers.remove(writer)
