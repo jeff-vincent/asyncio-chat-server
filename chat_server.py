@@ -46,7 +46,8 @@ class ChatServer:
         writer.close()
 
     async def main(self):
-        # start server; pass self.handle() as a callback
+        # start server; pass self.handle as a callback 
+        # NOTE: the absence of parens -- asyncio calls it directly
         server = await asyncio.start_server(
             self.handle, '127.0.0.1', 8888)
 
