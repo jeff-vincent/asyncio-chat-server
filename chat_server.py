@@ -9,6 +9,7 @@ class ChatServer:
         # iterate over writer objects in self.writers list
         for w in self.writers:
             # writer objects (from which the message didn't come) write message out
+            # as utf-8 bytes which the client will decode
             if w != writer:
                 w.write(f"{addr!r}: {message!r}\n".encode('utf-8'))
 
