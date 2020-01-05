@@ -16,7 +16,7 @@ class ChatServer:
     async def handle(self, reader, writer):
         # add writer to list of writers
         self.writers.append(writer)
-        # get addr from writer object
+        # get addr from writer
         addr = writer.get_extra_info('peername')
         # format string
         message = f"{addr!r} is connected !!!!"
@@ -33,15 +33,16 @@ class ChatServer:
             # pass to forward, and free up while you wait
             await self.forward(writer, addr, message)
             # call writer.drain() to write from [clear] the loops' buffer, 
-            # and free up while you wait for it to run
+            # and free up while you wait
             await writer.drain()
-            # if client text == 'exit', break loop; stop reader object from listening
+            # if client text == 'exit', break loop; 
+            # stop reader from listening
             if message == "exit":
                 message = f"{addr!r} wants to close the connection."
                 print(message)
                 self.forward(writer, "Server", message)
                 break
-        # if reader is stopped, clean up by removing writer from list of writers.
+        # if reader is stopped, clean up by removing writer from list of writers
         self.writers.remove(writer)
         writer.close()
 
