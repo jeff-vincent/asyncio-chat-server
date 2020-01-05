@@ -14,13 +14,7 @@ class ChatServer:
             if w != writer:
                 w.write(f"{self.users[addr]!r}: {message!r}\n".encode('utf-8'))
 
-    async def handle(self, reader, writer):
-        # add writer to list of writers
-        self.writers.append(writer)
-        # get addr from writer
-        addr = writer.get_extra_info('peername')
-        # format string
-        message = f"{addr!r} is connected !!!!"
+    async def set_username(self, reader, writer, addr):
         # promt new user for username  
         writer.write(bytes('What username would you like to use? ','utf-8'))
         # wait for reader to read user response
@@ -31,7 +25,15 @@ class ChatServer:
         self.users[addr] = username
         # tidy up
         await writer.drain()
-        print(f"Username: {username!r} added.")
+        return username
+
+    async def handle(self, reader, writer):
+        # add writer to list of writers
+        self.writers.append(writer)
+        # get addr from writer
+        addr = writer.get_extra_info('peername')
+        username = await self.set_username(reader, writer, addr)
+        message = f"Username: {username!r} added."
         print(message)
         # pass to self.forward, and free up while you wait
         await self.forward(writer, addr, message)
