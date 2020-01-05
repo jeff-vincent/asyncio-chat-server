@@ -4,13 +4,14 @@ class ChatServer:
 
     def __init__(self):
         self.writers = []
+        self.users = {}
 
     async def forward(self, writer, addr, message):
         # iterate over writer objects in self.writers list
         for w in self.writers:
             # writer objects (from which the message didn't come) write message out
             if w != writer:
-                w.write(f"{addr!r}: {message!r}\n".encode('utf-8'))
+                w.write(f"{self.users[addr]!r}: {message!r}\n".encode('utf-8'))
 
     async def handle(self, reader, writer):
         # add writer to list of writers
@@ -19,6 +20,17 @@ class ChatServer:
         addr = writer.get_extra_info('peername')
         # format string
         message = f"{addr!r} is connected !!!!"
+        # promt new user for username  
+        writer.write(bytes('What username would you like to use? ','utf-8'))
+        # wait for reader to read user response
+        data = await reader.read(100)
+        # handle bytes stuff
+        username = data.decode().strip()
+        # add to self.user dict
+        self.users[addr] = username
+        # tidy up
+        await writer.drain()
+        print(f"Username: {username!r} added.")
         print(message)
         # pass to self.forward, and free up while you wait
         await self.forward(writer, addr, message)
@@ -28,7 +40,7 @@ class ChatServer:
             # wait for reader to load data
             data = await reader.read(100)
             # decode bytes to utf-8
-            message = data.decode('utf-8').strip()
+            message = data.decode().strip()
             # pass to forward, and free up while you wait
             await self.forward(writer, addr, message)
             # call writer.drain() to write from the loops' buffer, 
