@@ -5,6 +5,8 @@ class ChatServer:
     def __init__(self):
         self.writers = []
         self.users = {}
+        self.write_queue = asyncio.Queue()
+
 
     async def forward(self, writer, addr, message):
         # iterate over writer objects in self.writers list
@@ -12,7 +14,16 @@ class ChatServer:
             # writer objects (from which the message didn't come) write message out
             # as utf-8 bytes which the client will decode
             if w != writer:
-                w.write(f"{self.users[addr]!r}: {message!r}\n".encode('utf-8'))
+                await self.write_queue.put(w.write(
+                f"{self.users[addr]!r}: {message!r}\n"
+                .encode('utf-8')))
+
+    async def announce(self, writer, addr, message):
+        for w in self.writers:
+            if w != writer:
+                await self.write_queue.put(w.write(
+                f"***{message!r}***\n"
+                .encode('utf-8')))
 
     async def set_username(self, reader, writer, addr):
         # promt new user for username  
@@ -45,10 +56,11 @@ class ChatServer:
         # get addr from writer
         addr = writer.get_extra_info('peername')
         username = await self.set_username(reader, writer, addr)
-        message = f"Username: {username!r} added."
+        message = f"{username!r} joined!"
         print(message)
-        # pass to self.forward, and free up while you wait
-        await self.forward(writer, addr, message)
+        await self.write_queue.put(message)
+        # pass to announce, and free up while you wait
+        await self.announce(writer, addr, message)
         
         # set reader to listen for incoming messages
         while True:
@@ -56,7 +68,7 @@ class ChatServer:
             data = await reader.read(100)
             # decode bytes to utf-8
             message = data.decode().strip()
-            
+
             # expose method for users to get current user list
             if message == "/users":
                 await self.get_users(writer)
