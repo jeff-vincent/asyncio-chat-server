@@ -18,12 +18,12 @@ class ChatServer:
                 f"{self.users[addr]!r}: {message!r}\n"
                 .encode('utf-8')))
 
-    async def announce(self, writer, addr, message):
+    async def announce(self, message):
+        # announcements go to er body
         for w in self.writers:
-            if w != writer:
-                await self.write_queue.put(w.write(
-                f"***{message!r}***\n"
-                .encode('utf-8')))
+            await self.write_queue.put(w.write(
+            f"***{message!r}***\n"
+            .encode('utf-8')))
 
     async def set_username(self, reader, writer, addr):
         # promt new user for username  
@@ -60,7 +60,7 @@ class ChatServer:
         print(message)
         await self.write_queue.put(message)
         # pass to announce, and free up while you wait
-        await self.announce(writer, addr, message)
+        await self.announce(message)
         
         # set reader to listen for incoming messages
         while True:
@@ -85,7 +85,7 @@ class ChatServer:
             if message == "exit":
                 message = f"{addr!r} wants to close the connection."
                 print(message)
-                self.forward(writer, "Server", message)
+                await self.forward(writer, "Server", message)
                 break
 
         # if reader is stopped, clean up by removing writer from list of writers
@@ -105,5 +105,7 @@ class ChatServer:
         async with server:
             await server.serve_forever()
 
-chat_server = ChatServer()
-asyncio.run(chat_server.main())
+
+if __name__ == '__main__':
+    chat_server = ChatServer()
+    asyncio.run(chat_server.main())
