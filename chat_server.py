@@ -50,6 +50,16 @@ class ChatServer:
         # tidy up
         await writer.drain()
 
+    async def client_check(self, reader, writer):
+        message = bytes("""Press Enter again to quit, or press any other key to remain online:... \n""", 'utf-8')
+        writer.write(message)
+        data = await reader.read(100)
+        response = data.decode().strip()
+        await writer.drain()
+        return response
+
+
+
     async def handle(self, reader, writer):
         # add writer to list of writers
         self.writers.append(writer)
@@ -72,6 +82,13 @@ class ChatServer:
             # expose method for users to get current user list
             if message == "/users":
                 await self.get_users(writer)
+                continue
+
+            # catch closed terminal bug
+            if message == '':
+                response = await self.client_check(reader, writer)
+                if response == '':
+                    break
 
             # pass to forward, and free up while you wait
             else:
