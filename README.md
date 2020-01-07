@@ -7,4 +7,6 @@ To use:
 3. From within the repo, run `pipenv shell`
 4. Then, from within your newly created virtualenv, run: `python chat_server.py`
 5. Open several other terminals, and from within them, run: `telnet 127.0.0.1 8888`
-6. Type yourself messages :)
+6. Set usernames, and begin messaging. 
+7. To access a current user list, type: `/users`
+8. To send a direct message to one other chat member, type: `/dm :<username>: <your message>
