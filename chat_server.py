@@ -7,7 +7,6 @@ class ChatServer:
         self.users = {}
         self.write_queue = asyncio.Queue()
 
-
     async def forward(self, writer, addr, message):
         # iterate over writer objects in self.writers list
         for w in self.writers:
@@ -58,6 +57,30 @@ class ChatServer:
         await writer.drain()
         return response
 
+    async def send_dm(self, addr, message):
+        try:
+            # get sender
+            for address, username in self.users.items():
+                if address == addr:
+                    sender = username
+
+            # get recipient_name & associated writer
+            for address, username in self.users.items():
+                if f":{username}:" in message:
+                    recipient_name = username
+                    for w in self.writers:
+                        if w.get_extra_info('peername') == address:
+                            writer2 = w
+
+            # clean up the message
+            message = message.replace('/dm', '')
+            message = message.replace(f":{recipient_name}:", '').strip()
+            # send it        
+            await self.write_queue.put(writer2.write(bytes(f"**DM FROM {sender}: {message}\n", 'utf-8')))
+            # clean up
+            await writer2.drain()
+        except Exception as e:
+            print(str(e))
 
 
     async def handle(self, reader, writer):
@@ -82,6 +105,12 @@ class ChatServer:
             # expose method for users to get current user list
             if message == "/users":
                 await self.get_users(writer)
+                # dont send <message> anywhere else
+                continue
+
+            # expose method for sending a DM
+            if message.startswith('/dm'):
+                await self.send_dm(addr, message)
                 continue
 
             # catch closed terminal bug
