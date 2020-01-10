@@ -1,11 +1,24 @@
 import asyncio
 
+class Color:
+ RED = '\033[91m'
+ GREEN = '\033[92m'
+ YELLOW = '\033[93m'
+ BLUE = '\033[94m'
+ PURPLE = '\033[95m'
+ TEAL = '\033[96m'
+ END_COLOR = '\033[00m'
+
+
 class ChatServer:
 
     def __init__(self):
         self.writers = []
         self.users = {}
         self.write_queue = asyncio.Queue()
+
+    def printColor(self, string, color):
+        print('{} {}\033[00m'.format(color, string))
 
     async def forward(self, writer, addr, message):
         # iterate over writer objects in self.writers list
@@ -33,6 +46,7 @@ class ChatServer:
         username = data.decode().strip()
         # add to self.user dict
         self.users[addr] = username
+        
         # tidy up
         await writer.drain()
         return username
@@ -50,7 +64,8 @@ class ChatServer:
         await writer.drain()
 
     async def client_check(self, reader, writer):
-        message = bytes("""Press Enter again to quit, or press any other key to remain online:... \n""", 'utf-8')
+        message = bytes("""Press Enter again to quit, 
+        or enter any other value to remain online:... \n""", 'utf-8')
         writer.write(message)
         data = await reader.read(100)
         response = data.decode().strip()
@@ -76,7 +91,7 @@ class ChatServer:
             message = message.replace('/dm', '')
             message = message.replace(f":{recipient_name}:", '').strip()
             # send it        
-            await self.write_queue.put(writer2.write(bytes(f"**DM FROM {sender}: {message}\n", 'utf-8')))
+            await self.write_queue.put(writer2.write(bytes(f"{Color.PURPLE}**DM FROM {sender}: {message}{Color.END_COLOR}\n", 'utf-8')))
             # clean up
             await writer2.drain()
         except Exception as e:
@@ -146,7 +161,8 @@ class ChatServer:
 
         # claim first socketname for server
         addr = server.sockets[0].getsockname()
-        print(f'Serving on {addr}')
+        self.printColor(f'Serving on {addr}', Color.TEAL)
+
         # use "async with" to clean up should the server be stopped abruptly
         async with server:
             await server.serve_forever()
