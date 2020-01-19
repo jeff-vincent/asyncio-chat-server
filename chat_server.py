@@ -11,10 +11,9 @@ class Color:
 
 class User:
 
-    def __init__(self, reader, writer, addr):
+    def __init__(self, reader, writer):
         self.reader = reader
         self.writer = writer
-        self.addr = addr
         self.username = ''
         self.print_color = ''
 
@@ -30,6 +29,7 @@ class ChatServer:
         print('{} {}\033[00m'.format(color, string))
 
     async def forward(self, user, message):
+        
         # iterate over writer objects in self.writers list
         sender = user
         for user in self.users:
@@ -40,6 +40,7 @@ class ChatServer:
                 .encode('utf-8')))
 
     async def announce(self, message):
+
         # announcements go to er body
         for user in self.users:
             await self.write_queue.put(user.writer.write(
@@ -67,9 +68,9 @@ class ChatServer:
             return Color.TEAL
 
 
-    async def create_user(self, reader, writer, addr):
+    async def create_user(self, reader, writer):
 
-        user = User(reader, writer, addr)
+        user = User(reader, writer)
         # promt new user for username  
         user.writer.write(bytes
         ('What username would you like to use? ','utf-8'))
@@ -86,6 +87,7 @@ class ChatServer:
         return user
 
     async def get_users(self, writer):
+
         user_list = []
         # iterate over users dict to build list
         for user in self.users:
@@ -97,12 +99,12 @@ class ChatServer:
         # tidy up
         await writer.drain()
 
-    async def client_check(self, reader, writer):
+    async def client_check(self, user):
         message = bytes('Press Enter again to quit,or enter any other value to remain online:... \n', 'utf-8')
-        writer.write(message)
-        data = await reader.read(100)
+        user.writer.write(message)
+        data = await user.reader.read(100)
         response = data.decode().strip()
-        await writer.drain()
+        await user.writer.drain()
         return response
 
     async def send_dm(self, user, message):
@@ -130,9 +132,7 @@ class ChatServer:
 
     async def handle(self, reader, writer):
 
-        # get addr from writer
-        addr = writer.get_extra_info('peername')
-        new_user = await self.create_user(reader, writer, addr)
+        new_user = await self.create_user(reader, writer)
         message = f"{new_user.username} joined!"
         
         await self.write_queue.put(message)
@@ -159,7 +159,7 @@ class ChatServer:
 
             # catch closed terminal bug
             if message == '':
-                response = await self.client_check(reader, writer)
+                response = await self.client_check(new_user)
                 if response == '':
                     break
 
