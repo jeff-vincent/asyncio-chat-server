@@ -9,34 +9,40 @@ class Color:
  TEAL = '\033[96m'
  END_COLOR = '\033[00m'
 
+class User:
+
+    def __init__(self, reader, writer, addr):
+        self.reader = reader
+        self.writer = writer
+        self.addr = addr
+        self.username = ''
+        self.print_color = ''
+
 
 class ChatServer:
 
     def __init__(self):
-        self.writers = []
-        self.users = {}
+        self.users = []
         self.write_queue = asyncio.Queue()
         self.last_print_color_assigned = ''
-        self.color_list = ['RED', 'GREEN', 'YELLOW', 'BLUE', 'PURPLE', 'TEAL']
 
     def printColor(self, string, color):
         print('{} {}\033[00m'.format(color, string))
 
-    async def forward(self, writer, addr, message):
+    async def forward(self, user, message):
         # iterate over writer objects in self.writers list
-        for w in self.writers:
-            # writer objects (from which the message didn't come) write message out
-            # as utf-8 bytes which the client will decode
-            if w != writer:
-                user = self.users[addr]
-                await self.write_queue.put(w.write(
-                f"{user['print_color']}{user['username']!r}: {message!r}{Color.END_COLOR}\n"
+        sender = user
+        for user in self.users:
+            if user != sender:
+
+                await self.write_queue.put(user.writer.write(
+                f"{sender.print_color}{sender.username!r}: {message!r}{Color.END_COLOR}\n"
                 .encode('utf-8')))
 
     async def announce(self, message):
         # announcements go to er body
-        for w in self.writers:
-            await self.write_queue.put(w.write(
+        for user in self.users:
+            await self.write_queue.put(user.writer.write(
             f"***{message!r}***\n"
             .encode('utf-8')))
 
@@ -62,29 +68,28 @@ class ChatServer:
 
 
     async def create_user(self, reader, writer, addr):
+
+        user = User(reader, writer, addr)
         # promt new user for username  
-        writer.write(bytes('What username would you like to use? ','utf-8'))
+        user.writer.write(bytes
+        ('What username would you like to use? ','utf-8'))
         # wait for reader to read user response
-        data = await reader.read(100)
-        # handle bytes stuff
-        user = {}
-        username = data.decode().strip()
-        user['username'] = username
-        # pseudo randomly assigned byte-string drawn from the class Color
-        user['print_color'] = await self.get_print_color()
+        data = await user.reader.read(100)
+        user.username = data.decode().strip()
+        user.print_color = await self.get_print_color()
 
         # add to self.user dict
-        self.users[addr] = user
+        self.users.append(user)
         
         # tidy up
         await writer.drain()
-        return username
+        return user
 
     async def get_users(self, writer):
         user_list = []
         # iterate over users dict to build list
-        for addr, user in self.users.items():
-            user_list.append(user['username'])
+        for user in self.users:
+            user_list.append(user.username)
         # format string with user list
         message = f"Current users: {', '.join(user_list)!r}"
         # write it out
@@ -93,34 +98,30 @@ class ChatServer:
         await writer.drain()
 
     async def client_check(self, reader, writer):
-        message = bytes("""Press Enter again to quit, 
-        or enter any other value to remain online:... \n""", 'utf-8')
+        message = bytes('Press Enter again to quit,or enter any other value to remain online:... \n', 'utf-8')
         writer.write(message)
         data = await reader.read(100)
         response = data.decode().strip()
         await writer.drain()
         return response
 
-    async def send_dm(self, addr, message):
+    async def send_dm(self, user, message):
         try:
-            # get sender
-            for address, username in self.users.items():
-                if address == addr:
-                    sender = username
+
+            sender = user
 
             # get recipient_name & associated writer
-            for address, username in self.users.items():
-                if f":{username}:" in message:
-                    recipient_name = username
-                    for w in self.writers:
-                        if w.get_extra_info('peername') == address:
-                            writer2 = w
+            for user in self.users:
+                if f":{user.username}:" in message:
+                    recipient_name = user.username
+                    writer2 = user.writer
 
             # clean up the message
             message = message.replace('/dm', '')
             message = message.replace(f":{recipient_name}:", '').strip()
             # send it        
-            await self.write_queue.put(writer2.write(bytes(f"**DM FROM {sender}: {message}\n", 'utf-8')))
+            await self.write_queue.put(writer2.write(bytes
+            (f"**DM FROM {sender.username}: {message}\n", 'utf-8')))
             # clean up
             await writer2.drain()
         except Exception as e:
@@ -128,13 +129,12 @@ class ChatServer:
 
 
     async def handle(self, reader, writer):
-        # add writer to list of writers
-        self.writers.append(writer)
+
         # get addr from writer
         addr = writer.get_extra_info('peername')
-        username = await self.create_user(reader, writer, addr)
-        message = f"{username!r} joined!"
-        print(message)
+        new_user = await self.create_user(reader, writer, addr)
+        message = f"{new_user.username} joined!"
+        
         await self.write_queue.put(message)
         # pass to announce, and free up while you wait
         await self.announce(message)
@@ -142,19 +142,19 @@ class ChatServer:
         # set reader to listen for incoming messages
         while True:
             # wait for reader to load data
-            data = await reader.read(100)
+            data = await new_user.reader.read(100)
             # decode bytes to utf-8
             message = data.decode().strip()
 
             # expose method for users to get current user list
             if message == "/users":
-                await self.get_users(writer)
+                await self.get_users(new_user.writer)
                 # dont send <message> anywhere else
                 continue
 
             # expose method for sending a DM
             if message.startswith('/dm'):
-                await self.send_dm(addr, message)
+                await self.send_dm(new_user, message)
                 continue
 
             # catch closed terminal bug
@@ -165,7 +165,7 @@ class ChatServer:
 
             # pass to forward, and free up while you wait
             else:
-                await self.forward(writer, addr, message)
+                await self.forward(new_user, message)
             # call writer.drain() to write from [clear] the loops' buffer, 
             # and free up while you wait
             await writer.drain()
@@ -179,8 +179,8 @@ class ChatServer:
                 break
 
         # if reader is stopped, clean up by removing writer from list of writers
-        self.writers.remove(writer)
-        writer.close()
+        self.users.remove(new_user)
+        new_user.writer.close()
 
     async def main(self):
         # start server; pass self.handle as a callback 
