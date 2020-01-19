@@ -16,6 +16,8 @@ class ChatServer:
         self.writers = []
         self.users = {}
         self.write_queue = asyncio.Queue()
+        self.last_print_color_assigned = ''
+        self.color_list = ['RED', 'GREEN', 'YELLOW', 'BLUE', 'PURPLE', 'TEAL']
 
     def printColor(self, string, color):
         print('{} {}\033[00m'.format(color, string))
@@ -26,8 +28,9 @@ class ChatServer:
             # writer objects (from which the message didn't come) write message out
             # as utf-8 bytes which the client will decode
             if w != writer:
+                user = self.users[addr]
                 await self.write_queue.put(w.write(
-                f"{self.users[addr]!r}: {message!r}\n"
+                f"{user['print_color']}{user['username']!r}: {message!r}{Color.END_COLOR}\n"
                 .encode('utf-8')))
 
     async def announce(self, message):
@@ -37,15 +40,41 @@ class ChatServer:
             f"***{message!r}***\n"
             .encode('utf-8')))
 
-    async def set_username(self, reader, writer, addr):
+    async def get_print_color(self):
+        if self.last_print_color_assigned == Color.TEAL:
+            self.last_print_color_assigned = Color.RED
+            return Color.RED
+        elif self.last_print_color_assigned == Color.RED:
+            self.last_print_color_assigned = Color.GREEN
+            return Color.GREEN
+        elif self.last_print_color_assigned == Color.GREEN:
+            self.last_print_color_assigned = Color.YELLOW
+            return Color.YELLOW
+        elif self.last_print_color_assigned == Color.YELLOW:
+            self.last_print_color_assigned = Color.BLUE
+            return Color.BLUE
+        elif self.last_print_color_assigned == Color.BLUE:
+            self.last_print_color_assigned = Color.PURPLE
+            return Color.PURPLE
+        else:
+            self.last_print_color_assigned = Color.TEAL
+            return Color.TEAL
+
+
+    async def create_user(self, reader, writer, addr):
         # promt new user for username  
         writer.write(bytes('What username would you like to use? ','utf-8'))
         # wait for reader to read user response
         data = await reader.read(100)
         # handle bytes stuff
+        user = {}
         username = data.decode().strip()
+        user['username'] = username
+        # pseudo randomly assigned byte-string drawn from the class Color
+        user['print_color'] = await self.get_print_color()
+
         # add to self.user dict
-        self.users[addr] = username
+        self.users[addr] = user
         
         # tidy up
         await writer.drain()
@@ -54,8 +83,8 @@ class ChatServer:
     async def get_users(self, writer):
         user_list = []
         # iterate over users dict to build list
-        for addr, username in self.users.items():
-            user_list.append(username)
+        for addr, user in self.users.items():
+            user_list.append(user['username'])
         # format string with user list
         message = f"Current users: {', '.join(user_list)!r}"
         # write it out
@@ -91,7 +120,7 @@ class ChatServer:
             message = message.replace('/dm', '')
             message = message.replace(f":{recipient_name}:", '').strip()
             # send it        
-            await self.write_queue.put(writer2.write(bytes(f"{Color.PURPLE}**DM FROM {sender}: {message}{Color.END_COLOR}\n", 'utf-8')))
+            await self.write_queue.put(writer2.write(bytes(f"**DM FROM {sender}: {message}\n", 'utf-8')))
             # clean up
             await writer2.drain()
         except Exception as e:
@@ -103,7 +132,7 @@ class ChatServer:
         self.writers.append(writer)
         # get addr from writer
         addr = writer.get_extra_info('peername')
-        username = await self.set_username(reader, writer, addr)
+        username = await self.create_user(reader, writer, addr)
         message = f"{username!r} joined!"
         print(message)
         await self.write_queue.put(message)
