@@ -1,6 +1,7 @@
 import asyncio
 
 class Color:
+
  RED = '\033[91m'
  GREEN = '\033[92m'
  YELLOW = '\033[93m'
@@ -25,11 +26,12 @@ class ChatServer:
         self.write_queue = asyncio.Queue()
         self.last_print_color_assigned = ''
 
+
     def printColor(self, string, color):
         print('{} {}\033[00m'.format(color, string))
 
+
     async def forward(self, user, message):
-        
         # iterate over writer objects in self.writers list
         sender = user
         for user in self.users:
@@ -39,13 +41,14 @@ class ChatServer:
                 f"{sender.print_color}{sender.username!r}: {message!r}{Color.END_COLOR}\n"
                 .encode('utf-8')))
 
-    async def announce(self, message):
 
+    async def announce(self, message):
         # announcements go to er body
         for user in self.users:
             await self.write_queue.put(user.writer.write(
             f"***{message!r}***\n"
             .encode('utf-8')))
+
 
     async def get_print_color(self):
         if self.last_print_color_assigned == Color.TEAL:
@@ -69,7 +72,6 @@ class ChatServer:
 
 
     async def create_user(self, reader, writer):
-
         user = User(reader, writer)
         # promt new user for username  
         user.writer.write(bytes
@@ -86,8 +88,8 @@ class ChatServer:
         await writer.drain()
         return user
 
-    async def get_users(self, writer):
 
+    async def get_users(self, writer):
         user_list = []
         # iterate over users dict to build list
         for user in self.users:
@@ -99,19 +101,21 @@ class ChatServer:
         # tidy up
         await writer.drain()
 
+
     async def client_check(self, user):
-        message = bytes('Press Enter again to quit,or enter any other value to remain online:... \n', 'utf-8')
+        message = bytes(
+        'Press Enter to quit, or enter any other value to remain online: \n',
+        'utf-8')
         user.writer.write(message)
         data = await user.reader.read(100)
         response = data.decode().strip()
         await user.writer.drain()
         return response
 
+
     async def send_dm(self, user, message):
         try:
-
             sender = user
-
             # get recipient_name & associated writer
             for user in self.users:
                 if f":{user.username}:" in message:
@@ -131,7 +135,6 @@ class ChatServer:
 
 
     async def handle(self, reader, writer):
-
         new_user = await self.create_user(reader, writer)
         message = f"{new_user.username} joined!"
         
@@ -182,13 +185,14 @@ class ChatServer:
         self.users.remove(new_user)
         new_user.writer.close()
 
+
     async def main(self):
         # start server; pass self.handle as a callback 
         # NOTE: the absence of parens -- asyncio calls it directly
         server = await asyncio.start_server(
             self.handle, '127.0.0.1', 8888)
 
-        # claim first socketname for server
+        # alert admin that server is up
         addr = server.sockets[0].getsockname()
         self.printColor(f'Serving on {addr}', Color.TEAL)
 
