@@ -1,4 +1,6 @@
 import asyncio
+import aiohttp
+
 
 class Color:
 
@@ -17,6 +19,7 @@ class User:
         self.writer = writer
         self.username = ''
         self.print_color = ''
+        self.read_language = ''
 
 
 class ChatServer:
@@ -36,15 +39,40 @@ class ChatServer:
         sender = user
         for user in self.users:
             if user != sender:
+                if user.read_language:
+                    message = await self.translate_message(message, user)
 
                 await self.write_queue.put(user.writer.write(
                 f"{sender.print_color}{sender.username!r}: {message!r}{Color.END_COLOR}\n"
                 .encode('utf-8')))
 
+    async def translate_message(self, message, user):
+        detect_dict = {
+            'text': message
+        }
+        translate_dict = {
+            'text': message,
+            'current_lang': '',
+            'target': user.read_language
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post('http://0.0.0.0:5000/detect', data=detect_dict) as resp:
+                translate_dict['current_lang'] = await resp.text()
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post('http://0.0.0.0:5000/translate', data=translate_dict) as resp:
+                print(resp)
+                data = await resp.text()
+
+        return data
+
 
     async def announce(self, message):
         # announcements go to er body
         for user in self.users:
+            if user.read_language:
+                message = await self.translate_message(message, user)
             await self.write_queue.put(user.writer.write(
             f"***{message!r}***\n"
             .encode('utf-8')))
@@ -80,6 +108,12 @@ class ChatServer:
         data = await user.reader.read(100)
         user.username = data.decode().strip()
         user.print_color = await self.get_print_color()
+        # prompt for new read language
+        user.writer.write(bytes
+        ('What language would you like to read in? (Ex. `es` for Spanish): ','utf-8'))
+        # wait for reader to read user response
+        data = await user.reader.read(100)
+        user.read_language = data.decode().strip()
 
         # add to self.user dict
         self.users.append(user)
@@ -119,12 +153,14 @@ class ChatServer:
             # get recipient_name & associated writer
             for user in self.users:
                 if f":{user.username}:" in message:
-                    recipient_name = user.username
+                    recipient = user
                     writer2 = user.writer
 
             # clean up the message
             message = message.replace('/dm', '')
-            message = message.replace(f":{recipient_name}:", '').strip()
+            message = message.replace(f":{recipient.username}:", '').strip()
+            if recipient.read_language:
+                message = await self.translate_message(message, recipient)
             # send it        
             await self.write_queue.put(writer2.write(bytes
             (f"**DM FROM {sender.username}: {message}\n", 'utf-8')))
