@@ -57,10 +57,6 @@ class ChatServer:
             'current_lang': '',
             'target': user.read_language
         }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post('http://0.0.0.0:5000/detect', data=detect_dict) as resp:
-                translate_dict['current_lang'] = await resp.text()
 
         async with aiohttp.ClientSession() as session:
             async with session.post('http://0.0.0.0:5000/translate', data=translate_dict) as resp:
