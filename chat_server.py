@@ -1,5 +1,6 @@
 import asyncio
 import aiohttp
+import json
 
 
 class Color:
@@ -45,6 +46,7 @@ class ChatServer:
                 await self.write_queue.put(user.writer.write(
                 f"{sender.print_color}{sender.username!r}: {message!r}{Color.END_COLOR}\n"
                 .encode('utf-8')))
+
 
     async def translate_message(self, message, user):
         detect_dict = {
@@ -147,6 +149,24 @@ class ChatServer:
         return response
 
 
+    async def detect_sentiment(self, user, message):
+        sentiment_score = 0
+        sentiment = ''
+        detect_dict = {
+            'text': message
+            }
+        async with aiohttp.ClientSession() as session:
+            async with session.post('http://0.0.0.0:5000/detect-sentiment', data=detect_dict) as resp:
+                sentiment_score_dict = await resp.json()
+                sentiment_score_items = sentiment_score_dict.items()
+                for key, value in sentiment_score_items:
+                    if value > sentiment_score:
+                        sentiment_score = value
+                        sentiment = key
+
+        user.writer.write(bytes(sentiment, 'utf-8'))
+
+
     async def send_dm(self, user, message):
         try:
             sender = user
@@ -194,6 +214,11 @@ class ChatServer:
             # expose method for sending a DM
             if message.startswith('/dm'):
                 await self.send_dm(new_user, message)
+                continue
+
+            # detect sentiment of message
+            if message.startswith('/sentiment'):
+                await self.detect_sentiment(new_user, message)
                 continue
 
             # catch closed terminal bug
