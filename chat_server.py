@@ -165,6 +165,7 @@ class ChatServer:
                         sentiment = key
 
         user.writer.write(bytes(sentiment, 'utf-8'))
+        await user.writer.drain()
 
 
     async def send_dm(self, user, message):
